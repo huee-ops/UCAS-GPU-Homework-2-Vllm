@@ -1,69 +1,48 @@
-# 大模型推理服务模板(并行科技)
+# 2025年秋季国科大《GPU架构与编程》大作业二
 
-本项目是一个极简的大模型推理服务模板，旨在帮助您快速构建一个可以通过API调用的推理服务器。
+**项目名称**：基于 vLLM 的 Qwen3-0.6B 大模型高性能推理服务  
+**开源链接**：[入围决赛同学请在此处填写 Gitee/Github 链接，否则可删除]
 
+---
 
-## 项目结构
+## 1. 项目简介
 
-- `Dockerfile`: 用于构建容器镜像的配置文件。**请不要修改此文件的 EXPOSE 端口和 CMD 命令，千万不要添加未经允许的镜像，会把硬盘撑爆**。
-- `serve.py`: 推理服务的核心代码。您需要在此文件中修改和优化您的模型加载与推理逻辑。这个程序不能访问Internet。
-- `requirements.txt`: Python依赖列表。您可以添加您需要的库。
-- `.gitignore`: Git版本控制忽略的文件列表。
-- `download_model.py`: 下载权重的脚本，可以自行修改，请确保中国大陆的网络能够下载到。可以把权重托管在阿里云对象存储等云平台，或者参考沐曦模板代码中的托管方式。
-- `README.md`: 本说明文档。
+本项目是一个针对并行科技赛道优化的大模型推理服务，基于 `vLLM` 推理引擎构建，旨在提供高吞吐、低延迟的文本生成能力。项目核心采用 `Qwen3-0.6B` 模型，并通过 `FastAPI` 封装为标准的 HTTP 接口，能够满足评测系统对 `/predict` 端点的高并发调用需求。
 
-## 如何修改
+主要特性：
+- **高性能引擎**：使用 vLLM 进行推理加速。
+- **显存优化**：启用 FP8 量化与 Prefix Caching。
+- **快速启动**：内置模型下载脚本与预热策略。
 
-您需要关注的核心文件是 `serve.py`。
+## 2. 技术方案与实现细节
 
-目前，它使用 `transformers` 库加载了模型 `Qwen/Qwen2.5-0.5B`。您可以完全替换 `serve.py` 的内容，只要保证容器运行后，能提供模板中的'/predict'和'/'等端点即可。
+### 2.1 环境构建
+本项目基于并行科技推荐的 `vllm-openai:v0.11.0` 镜像构建。
+- **基础镜像**: `swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/vllm/vllm-openai:v0.11.0`
+- **依赖管理**: 通过 `requirements.txt` 安装 `modelscope` 等必要库，并配置了清华镜像源加速安装。
 
+### 2.2 模型选型
+- **模型**: `hurrylu/Qwen3-0.6B-ADDR64V1` (Qwen/Qwen3-0.6B 系列)。
+- **加载方式**: 构建阶段使用 `download_model.py` 通过 ModelScope 下载权重至本地 `./local-model`，确保运行时无需联网。
 
-**重要**: 评测系统会向 `/predict` 端点发送 `POST` 请求，其JSON body格式为：
+### 2.3 核心优化 (serve.py)
+在 `serve.py` 中实现了以下关键优化：
+1.  **量化推理**: 启用 `quantization="fp8"`，在保持精度的同时大幅降低显存占用。
+2.  **显存利用**: 设置 `gpu_memory_utilization=0.95`，充分利用 RTX 5090 的大显存。
+3.  **Prefix Caching**: 开启 `enable_prefix_caching=True`，复用公共前缀的 KV Cache，提高多轮对话或相似 Prompt 的处理效率。
+4.  **预热策略**: 服务启动前使用 `train.json` 中的数据进行预热 (`warmup`)，提前编译 CUDA Graph，消除首字延迟。
 
-```json
-{
-  "prompt": "Your question here"
-}
+## 3. 项目结构
 
-您的服务必须能够正确处理此请求，并返回一个JSON格式的响应，格式为：
+- `Dockerfile`: 容器构建配置文件，包含模型下载指令。
+- `serve.py`: 推理服务核心代码，包含 vLLM 引擎初始化与 FastAPI 接口定义。
+- `download_model.py`: 模型权重下载脚本。
+- `requirements.txt`: Python 依赖列表。
+- `train.json`: 用于服务启动时的预热数据。
 
-```json
-{
-  "response": "Your model's answer here"
-}
-```
+## 4. 接口说明与运行指南
 
-**请务必保持此API契约不变！**
-
-## 环境说明
-
-### 软件包版本
-
-主要软件包(nvcr.io/nvidia/pytorch:25.04-py3)版本请参考[NGC Release Notes](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-25-04.html)
-
-
-`软件使用的Note`:
-- 目前仅支持nvcr.io/nvidia/pytorch:25.04-py3
-- 如果您需要其他的镜像，请参与[问卷](https://tp.wjx.top/vm/OciiNf5.aspx)。
-
-### judge平台的配置说明
-
-judge机器的配置如下：
-
-``` text
-os: ubuntu24.04
-cpu: 14核
-内存: 120GB
-磁盘: 50GB
-GPU: RTX5090(显存：32GB)
-网络带宽：100Mbps，这个网络延迟的波动性比较大，所以给build阶段预留了25分钟的时间
-```
-
-judge系统的配置如下：
-
-``` text
-docker build stage: 1500s
-docker run - health check stage: 180s
-docker run - predict stage: 360s
-```
+### 启动服务
+容器启动命令（由 Dockerfile 指定）：
+```bash
+uvicorn serve:app --host 0.0.0.0 --port 8000
