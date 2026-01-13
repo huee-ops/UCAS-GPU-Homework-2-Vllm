@@ -1,0 +1,4 @@
+modelscope
+# 其他 serve 阶段需要的库，例如 fastapi 等通常 vllm 镜像里有，但显式加一下比较稳
+fastapi
+uvicorn
