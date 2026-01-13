@@ -1,7 +1,7 @@
 # 2025年秋季国科大《GPU架构与编程》大作业二
 
 **项目名称**：基于 vLLM 的 Qwen3-0.6B 大模型高性能推理服务  
-**开源链接**：[入围决赛同学请在此处填写 Gitee/Github 链接，否则可删除]
+**开源链接**：[[入围决赛同学请在此处填写 Gitee/Github 链接，否则可删除](https://github.com/huee-ops/UCAS-GPU-Homework-2-Vllm/)]
 
 ---
 
